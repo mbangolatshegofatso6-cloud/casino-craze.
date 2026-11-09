@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071b17">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Casino Craze</title>
+<style>
+:root{--bg:#071b17;--felt:#0b4a37;--gold:#e8bd62;--cream:#fff8e9;--muted:#b8c9bf;--red:#d84b4b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#155b43,var(--bg) 72%);color:var(--cream);font-family:system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #ffffff20}
+.brand{font-weight:900;letter-spacing:2px;color:var(--gold);font-size:20px}.sub{font-size:11px;color:var(--muted)}
+main{max-width:900px;margin:auto;padding:14px}
+.panel{background:#082d25cc;border:1px solid #d9b45b55;border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 8px 25px #0005}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.scoreboard{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.score{background:#ffffff0d;border:1px solid #ffffff20;border-radius:12px;padding:9px;text-align:center}.score strong{display:block;font-size:20px;color:var(--gold)}.score small{color:var(--muted)}
+.tablearea{min-height:120px;display:flex;gap:8px;flex-wrap:wrap;align-content:center;justify-content:center;padding:12px;background:linear-gradient(135deg,#0d6748,#08412f);border-radius:15px;border:2px solid #d9b45b66}
+.cards{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.card{width:58px;height:82px;border-radius:9px;background:var(--cream);color:#15211d;border:2px solid #e6dfce;box-shadow:0 3px 8px #0006;display:flex;flex-direction:column;justify-content:space-between;padding:6px;font-weight:800;cursor:pointer;user-select:none}
+.card .rank{font-size:20px;line-height:1}.card .suit{font-size:20px;align-self:flex-end;line-height:1}.card.red{color:#c72d36}.card.selected{outline:3px solid var(--gold);transform:translateY(-7px)}.card.tableSelected{outline:3px solid #72e2bd;transform:translateY(-5px)}
+.card.back{background:repeating-linear-gradient(45deg,#173c67,#173c67 5px,#e6bd63 5px,#e6bd63 7px);border:3px solid #fff4d7}
+button{background:var(--gold);color:#18231e;border:0;border-radius:12px;padding:11px 16px;font-weight:800;font-size:14px;cursor:pointer}
+button.secondary{background:#ffffff18;color:var(--cream);border:1px solid #ffffff40}button:disabled{opacity:.4;cursor:not-allowed}
+.status{color:#f6d98f;min-height:24px;text-align:center;font-weight:650}
+.hint{font-size:12px;color:var(--muted);text-align:center;line-height:1.5}
+h2{font-size:15px;letter-spacing:.6px;color:var(--gold);margin:0 0 10px}
+#overlay{position:fixed;inset:0;background:#000b;display:grid;place-items:center;padding:20px;z-index:5}
+.modal{max-width:420px;width:100%;background:#0a3027;border:1px solid var(--gold);border-radius:20px;padding:24px;text-align:center}
+.modal h1{color:var(--gold);letter-spacing:2px}
+.hidden{display:none!important}
+@media(max-width:520px){.scoreboard{grid-template-columns:repeat(2,1fr)}.card{width:51px;height:74px}.brand{font-size:17px}main{padding:9px}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">♠ CASINO CRAZE ♦</div><div class="sub">THE CLASSIC CARD CAPTURE CHALLENGE</div></div><button class="secondary" id="newTop">New game</button></header>
+<main>
+<section class="panel"><h2>PLAYERS & SCORES</h2><div class="scoreboard" id="scores"></div></section>
+<section class="panel"><div class="row"><h2>CARDS ON THE TABLE</h2><span class="sub" id="turnLabel">Your turn</span></div><div class="tablearea" id="table"></div><p class="hint">Choose one of your cards. Then select any table cards that add up to its value. You may also place it without capturing.</p></section>
+<section class="panel"><h2>YOUR HAND</h2><div class="cards" id="hand"></div><div class="row" style="margin-top:14px"><button id="playBtn" disabled>Play selected card</button><button class="secondary" id="clearBtn">Clear selection</button></div><p class="status" id="status" aria-live="polite">Select a card to begin.</p></section>
+<section class="panel"><div class="row"><span class="sub" id="remaining">40 cards dealt</span><span class="sub" id="round">Round 1 of 10</span></div><p class="hint">Scoring: each Ace (1), 6 of Spades and 10 of Diamonds = 1 point each. Capture more than 20 cards = 2 bonus points. Highest score wins.</p></section>
+</main>
+<div id="overlay"><div class="modal"><div style="font-size:42px">♠ ♥ ♦ ♣</div><h1>CASINO CRAZE</h1><p>Four players. Ten cards each. Capture table cards by matching their total to the card you play.</p><button id="startBtn">Start game</button><p class="hint">Offline-friendly prototype • Single device • You vs 3 computer players</p></div></div>
+<script>
+const suits=[{s:'♠',n:'Spades',red:false},{s:'♥',n:'Hearts',red:true},{s:'♦',n:'Diamonds',red:true},{s:'♣',n:'Clubs',red:false}];
+let deck=[],players=[],table=[],turn=0,selectedHand=null,selectedTable=[],finished=false,round=1,lastCapturer=null;
+const $=id=>document.getElementById(id);
+function makeDeck(){let d=[];for(let v=1;v<=10;v++)for(const suit of suits)d.push({v,s:suit.s,n:suit.n,red:suit.red,id:v+'-'+suit.s});return d}
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function newGame(){deck=shuffle(makeDeck());players=[{name:'You',hand:[],captured:[],human:true},{name:'Player 2',hand:[],captured:[]},{name:'Player 3',hand:[],captured:[]},{name:'Player 4',hand:[],captured:[]}];for(let k=0;k<10;k++)for(const p of players)p.hand.push(deck.pop());table=[];turn=0;selectedHand=null;selectedTable=[];finished=false;round=1;lastCapturer=null;render();$('status').textContent='Your turn. Select a card.'}
+function cardEl(c,cls='',click=null){let e=document.createElement('div');e.className='card '+(c.red?'red ':'')+cls;e.innerHTML=`<span class="rank">${c.v===1?'A':c.v}</span><span class="suit">${c.s}</span>`;if(click)e.onclick=click;return e}
+function render(){ $('scores').innerHTML='';players.forEach((p,i)=>{let d=document.createElement('div');d.className='score';d.innerHTML=`<small>${i===turn?'▶ ':''}${p.name}</small><strong>${score(p)}</strong><small>${p.hand.length} cards left</small>`;$('scores').append(d)});
+$('table').innerHTML='';table.forEach((c,i)=>$('table').append(cardEl(c,selectedTable.includes(i)?'tableSelected':'',()=>{if(turn!==0||selectedHand===null||finished)return;let j=selectedTable.indexOf(i);if(j>=0)selectedTable.splice(j,1);else selectedTable.push(i);render()})));
+$('hand').innerHTML='';players[0].hand.forEach((c,i)=>$('hand').append(cardEl(c,selectedHand===i?'selected':'',()=>{if(turn!==0||finished)return;selectedHand=i;selectedTable=[];render()})));
+$('playBtn').disabled=turn!==0||selectedHand===null||finished;$('turnLabel').textContent=finished?'Game over':players[turn].name+"'s turn";$('remaining').textContent=`${players.reduce((n,p)=>n+p.hand.length,0)} cards in hands`; $('round').textContent=`Round ${round} of 10`;
+}
+function score(p){let s=p.captured.filter(c=>c.v===1).length;s+=p.captured.filter(c=>c.v===6&&c.s==='♠').length;s+=p.captured.filter(c=>c.v===10&&c.s==='♦').length;if(p.captured.length>20)s+=2;return s}
+function total(cards){return cards.reduce((n,c)=>n+c.v,0)}
+function doPlay(pi,hi,indices){let p=players[pi],c=p.hand.splice(hi,1)[0];let chosen=indices.map(i=>table[i]);if(chosen.length&&total(chosen)===c.v){p.captured.push(c,...chosen);let keep=table.filter((_,i)=>!indices.includes(i));table=keep;lastCapturer=pi;$('status').textContent=`${p.name} captured ${chosen.length+1} cards!`}else{table.push(c);$('status').textContent=`${p.name} placed ${c.v===1?'Ace':c.v} on the table.`}
+if(players.every(x=>x.hand.length===0)){if(lastCapturer!==null){players[lastCapturer].captured.push(...table);table=[]}finish();return}
+turn=(turn+1)%4;if(turn===0)round++;selectedHand=null;selectedTable=[];render();if(turn!==0)setTimeout(botTurn,650);else $('status').textContent='Your turn. Select a card.'}
+function subsetsFor(card,arr){let found=[];function walk(i,sum,ids){if(sum===card.v&&ids.length){found.push(ids.slice());return}if(sum>=card.v)return;for(let j=i;j<arr.length;j++)walk(j+1,sum+arr[j].v,[...ids,j])}walk(0,0,[]);return found}
+function botTurn(){if(finished||turn===0)return;let p=players[turn];let best=null,bestCard=0;for(let i=0;i<p.hand.length;i++){let sets=subsetsFor(p.hand[i],table);if(sets.length){best=sets.sort((a,b)=>b.length-a.length)[0];bestCard=i;break}}
+if(best){doPlay(turn,bestCard,best)}else{let i=Math.floor(Math.random()*p.hand.length);doPlay(turn,i,[])}}
+function finish(){finished=true;render();let max=Math.max(...players.map(score));let winners=players.filter(p=>score(p)===max).map(p=>p.name);$('status').textContent=`Game finished! ${winners.join(' & ')} win${winners.length>1?'':'s'} with ${max} points.`;let detail=players.map(p=>`${p.name}: ${score(p)} points (${p.captured.length} captured)`).join('<br>');$('overlay').classList.remove('hidden');$('overlay').innerHTML=`<div class="modal"><div style="font-size:40px">🏆</div><h1>${winners.join(' & ')} ${winners.length>1?'WIN':'WINS'}!</h1><p>${detail}</p><button id="again">Play again</button></div>`;$('again').onclick=()=>{ $('overlay').innerHTML=originalOverlay;$('overlay').classList.remove('hidden');$('startBtn').onclick=begin}};
+const originalOverlay=`<div class="modal"><div style="font-size:42px">♠ ♥ ♦ ♣</div><h1>CASINO CRAZE</h1><p>Four players. Ten cards each. Capture table cards by matching their total to the card you play.</p><button id="startBtn">Start game</button><p class="hint">Offline-friendly prototype • Single device • You vs 3 computer players</p></div>`;
+function begin(){$('overlay').classList.add('hidden');newGame()}
+$('startBtn').onclick=begin;$('newTop').onclick=()=>{if(confirm('Start a new game? Current game will be lost.'))newGame()};
+$('clearBtn').onclick=()=>{selectedHand=null;selectedTable=[];render()};
+$('playBtn').onclick=()=>{if(selectedHand===null)return;let c=players[0].hand[selectedHand];if(selectedTable.length&&total(selectedTable.map(i=>table[i]))!==c.v){$('status').textContent=`Those table cards total ${total(selectedTable.map(i=>table[i]))}, not ${c.v}. Choose a matching combination or clear selection.`;return}doPlay(0,selectedHand,selectedTable.slice())};
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
